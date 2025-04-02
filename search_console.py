@@ -1,0 +1,97 @@
+import datetime
+import logging
+import os
+import pandas as pd
+import google.auth
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+
+# Set up OAuth2 credentials
+CLIENT_SECRETS_FILE = "client_secret_473146300778-k68g02h1iqftcukodvm29j5clsn3num2.apps.googleusercontent.com.json" 
+SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
+
+def authenticate_oauth():
+    creds = None
+    # The file token.json stores the user's access and refresh tokens, and is created automatically when the authorization flow completes for the first time.
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+
+    # If there are no valid credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CLIENT_SECRETS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Save the credentials for the next run
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    return creds
+
+# Build the Search Console API service
+def get_search_console_service():
+    creds = authenticate_oauth()
+    service = build('searchconsole', 'v1', credentials=creds)
+    return service
+
+SITE_URL = "https://www.rallyhouse.com" 
+
+
+
+date1 = datetime.date.today()
+timedelta = datetime.timedelta(days=1)
+date2 = date1 - timedelta #yesterday (cannot generate the report for today)
+timedelta = datetime.timedelta(days=9)
+date3 = date1 - timedelta #9 days ago to generate consistent sun-mon reports
+
+startDate = date3.strftime("%Y-%m-%d") #start date
+endDate = date2.strftime("%Y-%m-%d") #end date
+
+request = {
+    "startDate": startDate,  #start date
+    "endDate": endDate,    #end date
+    "dimensions": ["page"],  #Filter Request
+    "rowLimit": 25000,  #Max rows per request
+}
+
+def fetch_search_console_datav1():
+    service = get_search_console_service()
+    response = service.searchanalytics().query(siteUrl=SITE_URL, body=request).execute()
+
+    #Convert API response to Pandas datafrane
+    if "rows" in response:
+        data = []
+        for row in response["rows"]:
+            entry = {
+                "Query": row["keys"][0] if len(row["keys"]) > 0 else None,
+                "Page": row["keys"][1] if len(row["keys"]) > 1 else None,
+                "Device": row["keys"][2] if len(row["keys"]) > 2 else None,
+                "Country": row["keys"][3] if len(row["keys"]) > 3 else None,
+                "Clicks": row.get("clicks", 0),
+                "Impressions": row.get("impressions", 0),
+                "CTR": row.get("ctr", 0),
+                "Position": row.get("position", 0),
+            }
+            data.append(entry)
+
+        df = pd.DataFrame(data)
+        df.to_csv(f"search_console_report{datetime.date.today()}.csv", index=False)
+        print(f"Report saved as search_console_report{datetime.date.today()}.csv")
+    else:
+        print("No data found for the given date range.")
+
+# Setup Logging
+logging.basicConfig(filename="gsc_report.log", level=logging.INFO, 
+                    format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+logging.info("Start Log")
+try:
+    fetch_search_console_datav1()
+except Exception as e:
+    logging.error(f"Error occurred: {str(e)}")
