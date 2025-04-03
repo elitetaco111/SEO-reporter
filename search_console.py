@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 import pandas as pd
-import google.auth
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -41,57 +40,85 @@ def get_search_console_service():
 
 SITE_URL = "https://www.rallyhouse.com" 
 
-
-
+#set date filters
 date1 = datetime.date.today()
 timedelta = datetime.timedelta(days=1)
 date2 = date1 - timedelta #yesterday (cannot generate the report for today)
 timedelta = datetime.timedelta(days=9)
 date3 = date1 - timedelta #9 days ago to generate consistent sun-mon reports
+START_DATE = date3.strftime("%Y-%m-%d") #start date
+END_DATE = date2.strftime("%Y-%m-%d") #end date
 
-startDate = date3.strftime("%Y-%m-%d") #start date
-endDate = date2.strftime("%Y-%m-%d") #end date
-
+#build search console API request
 request = {
-    "startDate": startDate,  #start date
-    "endDate": endDate,    #end date
-    "dimensions": ["page"],  #Filter Request
-    "rowLimit": 25000,  #Max rows per request
+    "startDate": START_DATE,  #start date
+    "endDate": END_DATE,    #end date
+    "dimensions": ["Query"],  #Filter Request
+    "rowLimit": 10000,  #Max rows per request
+    "orderBy":[
+    {
+      "field": "impressions",
+      "order": "descending"
+    }]
 }
 
-def fetch_search_console_datav1():
+#authenticates and fetches data from Search Console API as well as saves it to a CSV file
+def fetch_search_console_datav1(site_url, flag):
     service = get_search_console_service()
-    response = service.searchanalytics().query(siteUrl=SITE_URL, body=request).execute()
+    response = service.searchanalytics().query(siteUrl=site_url, body=request).execute()
 
-    #Convert API response to Pandas datafrane
-    if "rows" in response:
-        data = []
-        for row in response["rows"]:
-            entry = {
-                "Query": row["keys"][0] if len(row["keys"]) > 0 else None,
-                "Page": row["keys"][1] if len(row["keys"]) > 1 else None,
-                "Device": row["keys"][2] if len(row["keys"]) > 2 else None,
-                "Country": row["keys"][3] if len(row["keys"]) > 3 else None,
-                "Clicks": row.get("clicks", 0),
-                "Impressions": row.get("impressions", 0),
-                "CTR": row.get("ctr", 0),
-                "Position": row.get("position", 0),
-            }
-            data.append(entry)
+    #convert API response to Pandas datafrane
+    if flag:
+        if "rows" in response:
+            data = []
+            for row in response["rows"]:
+                entry = {
+                    "Query": row["keys"][0] if len(row["keys"]) > 0 else None,
+                    "Page": row["keys"][1] if len(row["keys"]) > 1 else None,
+                    "Device": row["keys"][2] if len(row["keys"]) > 2 else None,
+                    "Country": row["keys"][3] if len(row["keys"]) > 3 else None,
+                    "Clicks": row.get("clicks", 0),
+                    "Impressions": row.get("impressions", 0),
+                    "CTR": row.get("ctr", 0),
+                    "Position": row.get("position", 0),
+                }
+                data.append(entry)
 
-        df = pd.DataFrame(data)
-        df.to_csv(f"search_console_report{datetime.date.today()}.csv", index=False)
-        print(f"Report saved as search_console_report{datetime.date.today()}.csv")
+            df = pd.DataFrame(data)
+            df.to_csv(f"search_console_report2{datetime.date.today()}.csv", index=False)
+            print(f"Report saved as search_console_report{datetime.date.today()}.csv")
+        else:
+            print("No data found for the given date range.")
     else:
-        print("No data found for the given date range.")
+        if "rows" in response:
+            data = []
+            for row in response["rows"]:
+                entry = {
+                    "Query": row["keys"][0] if len(row["keys"]) > 0 else None,
+                    "Clicks": row.get("clicks", 0),
+                    "Impressions": row.get("impressions", 0),
+                    "CTR": row.get("ctr", 0),
+                    "Position": row.get("position", 0),
+                }
+                data.append(entry)
 
-# Setup Logging
+            df = pd.DataFrame(data)
+            return df
+        else:
+            print("No data found for the given date range.")
+
+#Setup Logging
 logging.basicConfig(filename="gsc_report.log", level=logging.INFO, 
                     format="%(asctime)s - %(levelname)s - %(message)s")
 
+def main(site_url = SITE_URL, flag = True):
+    logging.info("Start Log")
+    try:
+        fetch_search_console_datav1(site_url, flag)
+    except Exception as e:
+        logging.error(f"Error occurred: {str(e)}")
 
-logging.info("Start Log")
-try:
-    fetch_search_console_datav1()
-except Exception as e:
-    logging.error(f"Error occurred: {str(e)}")
+if __name__ == "__main__":
+    main()
+    logging.info("End Log")
+#EOF
