@@ -55,10 +55,10 @@ START_DATE = date3.strftime("%Y-%m-%d") #start date
 END_DATE = date2.strftime("%Y-%m-%d") #end date
 
 #Build the request for search console
-request = {
+request_query = {
     "startDate": START_DATE,  #start date
     "endDate": END_DATE,    #end date (must be after or equal to start date)
-    "dimensions": ["Query"], 
+"dimensions": ["Query"], 
     "rowLimit": 25000,
     "orderBy":[
     {
@@ -67,6 +67,12 @@ request = {
     }]  
 }
 
+request_page = {
+     "startDate": START_DATE,  #start date
+     "endDate": END_DATE,    #end date (must be after or equal to start date)
+     "dimensions": ["page"], 
+     "rowLimit": 25000,  
+ }
 ####################################################################################
 
 def concat_ga_data(data, result):
@@ -92,7 +98,7 @@ def main():
     urls = ["https://www.rallyhouse.com", "https://shop.bigtenstore.com", "https://shop.gobearcats.com", "https://shop.kstatesports.com", "https://shoppittpanthers.com", "https://shopgoldenhurricane.com", "https://shopwmubroncos.com"]
     num = 1
     for url in urls:
-        sc = pd.DataFrame(search_console.fetch_search_console_datav1(url, False))
+        sc = pd.DataFrame(search_console.fetch_search_console_datav1(url, False, request_page))
         sc.to_csv(f"search_console_report{datetime.date.today()}_{num}.csv", index=False)
         num += 1
     return()

@@ -50,10 +50,10 @@ START_DATE = date3.strftime("%Y-%m-%d") #start date
 END_DATE = date2.strftime("%Y-%m-%d") #end date
 
 #build search console API request
-request = {
+request1 = {
     "startDate": START_DATE,  #start date
     "endDate": END_DATE,    #end date
-    "dimensions": ["Query"],  #Filter Request
+    "dimensions": ["page"],  #Filter Request
     "rowLimit": 10000,  #Max rows per request
     "orderBy":[
     {
@@ -63,7 +63,7 @@ request = {
 }
 
 #authenticates and fetches data from Search Console API as well as saves it to a CSV file
-def fetch_search_console_datav1(site_url, flag):
+def fetch_search_console_datav1(site_url, flag, request = request1):
     service = get_search_console_service()
     response = service.searchanalytics().query(siteUrl=site_url, body=request).execute()
 
@@ -85,8 +85,8 @@ def fetch_search_console_datav1(site_url, flag):
                 data.append(entry)
 
             df = pd.DataFrame(data)
-            df.to_csv(f"search_console_report2{datetime.date.today()}.csv", index=False)
-            print(f"Report saved as search_console_report{datetime.date.today()}.csv")
+            df.to_csv(f"base_search_console_report{datetime.date.today()}.csv", index=False)
+            print(f"Report saved as base_search_console_report{datetime.date.today()}.csv")
         else:
             print("No data found for the given date range.")
     else:
